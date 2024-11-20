@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>顔認証アプリ</title>
+</head>
+<body>
+    <h1>顔認証アプリへようこそ！</h1>
+    <p>登録するために写真を撮ってください。</p>
+
+    <!-- カメラ起動ボタン -->
+    <button id="startCamera">カメラを起動</button>
+
+    <!-- カメラ停止ボタン -->
+    <button id="stopCamera" style="display:none;">カメラを停止</button>
+
+    <!-- カメラ映像を表示する部分（最初は非表示） -->
+    <video id="video" width="640" height="480" autoplay style="display:none;"></video>
+
+    <!-- 写真を撮影するボタン -->
+    <button id="capture" style="display:none;">写真を撮る</button>
+
+    <!-- 撮影した写真を表示 -->
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+    <img id="photo" src="" alt="あなたの写真" style="display:none;"/>
+
+    <!-- 名前入力フォーム -->
+    <p>フルネームをローマ字で入力してください（例：山田 花子 → Yamada Hanako）。</p>
+    <input type="text" id="name" placeholder="フルネーム（ローマ字）" required>
+
+    <!-- 写真撮影に関する注意書き -->
+    <p>「写真を撮る」を押すたびに撮影した写真は更新されていきますので、納得いくまで撮影してください。</p>
+
+    <!-- アップロードフォーム -->
+    <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+        <input type="hidden" name="file" id="fileInput">
+        <input type="hidden" name="name" id="nameInput">
+        <button type="submit">写真をアップロード</button>
+    </form>
+
+    <script>
+        const startCameraButton = document.getElementById('startCamera');
+        const stopCameraButton = document.getElementById('stopCamera');
+        const video = document.getElementById('video');
+        const captureButton = document.getElementById('capture');
+        const canvas = document.getElementById('canvas');
+        const photo = document.getElementById('photo');
+        const fileInput = document.getElementById('fileInput');
+        const nameInput = document.getElementById('nameInput');
+        const nameField = document.getElementById('name');
+
+        let currentStream = null;
+
+        // カメラを起動する
+        startCameraButton.addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    currentStream = stream;
+                    video.srcObject = stream;
+                    video.style.display = 'block';  // カメラ映像を表示
+                    captureButton.style.display = 'inline';  // 写真を撮るボタンを表示
+                    startCameraButton.style.display = 'none';  // カメラ起動ボタンを非表示
+                    stopCameraButton.style.display = 'inline';  // カメラ停止ボタンを表示
+                })
+                .catch(error => {
+                    console.log('カメラへのアクセスエラー: ', error);
+                });
+        });
+
+        // カメラを停止する
+        stopCameraButton.addEventListener('click', () => {
+            if (currentStream) {
+                // ストリームを停止
+                const tracks = currentStream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.style.display = 'none';  // カメラ映像を非表示
+                captureButton.style.display = 'none';  // 写真を撮るボタンを非表示
+                startCameraButton.style.display = 'inline';  // カメラ起動ボタンを表示
+                stopCameraButton.style.display = 'none';  // カメラ停止ボタンを非表示
+            }
+        });
+
+        // 撮影ボタンが押されたとき
+        captureButton.addEventListener('click', () => {
+            // canvasに写真を描画
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            // 撮影した写真を表示
+            photo.src = canvas.toDataURL('image/png');
+            photo.style.display = 'block';
+
+            // 撮影した写真をhiddenのinputに設定
+            fileInput.value = canvas.toDataURL('image/png');
+        });
+
+        // フォーム送信時に名前とBase64画像データをサーバーに送信
+        document.getElementById('uploadForm').onsubmit = function(event) {
+            event.preventDefault();
+
+            // 入力された名前を取得
+            const userName = nameField.value.trim();
+
+            if (!userName) {
+                alert("名前を入力してください。");
+                return;
+            }
+
+            nameInput.value = userName;
+
+            const data = new FormData();
+            data.append('file', fileInput.value);
+            data.append('name', userName);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: data
+            }).then(response => response.text())
+              .then(result => alert(result))
+              .catch(error => console.error('写真のアップロードエラー:', error));
+        };
+    </script>
+</body>
+</html>
